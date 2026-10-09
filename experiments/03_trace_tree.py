@@ -3,7 +3,7 @@
   03_trace_tree.py --depth 2                       top level
   03_trace_tree.py --root tower.blocks.0 --depth 3 --ops
   03_trace_tree.py --stages                        per-stage table + coverage + pair_update check
-  03_trace_tree.py --depth 99 --ops --save         write tree_<tag>.txt (stage-tagged)
+  03_trace_tree.py --full --ops --save         write tree_<tag>.txt (stage-tagged)
 
 --root takes a name prefix. tower.blocks.N is a ModuleDict that is never *called*, so a
 prefix selects the called modules beneath it (mha, mlp, pair_update, ...).
@@ -137,19 +137,21 @@ def main():
     ap.add_argument("--length", type=int, default=16384)
     ap.add_argument("--json", help="override tree json path")
     ap.add_argument("--depth", type=int, default=2, help="module levels below the root shown")
+    ap.add_argument("--full", action="store_true", help="no depth limit (overrides --depth)")
     ap.add_argument("--root", default="", help="module name prefix to start from")
     ap.add_argument("--ops", action="store_true", help="show leaf torch ops (consecutive repeats collapsed)")
     ap.add_argument("--stages", action="store_true", help="per-stage table, coverage, pair_update check")
     ap.add_argument("--save", action="store_true", help="write tree_<tag>.txt next to the json")
     args = ap.parse_args()
 
+    depth = float("inf") if args.full else args.depth
     path = args.json or common.OUT_DIR / f"tree_{common.tag(args.length)}.json"
     data = json.load(open(path))
     stage_map = common.load_stage_map()
 
     lines = [f"# {path.name if hasattr(path, 'name') else path}  meta={json.dumps(data['meta'])}"]
     for r in select_roots(data["tree"], args.root):
-        lines += render(r, data["calls"], stage_map, args.depth, args.ops)
+        lines += render(r, data["calls"], stage_map, depth, args.ops)
     if args.stages:
         if not stage_map:
             raise SystemExit("no stage_map.json next to the scripts")
