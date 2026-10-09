@@ -1,7 +1,14 @@
 """Shared helpers for the profiling scripts: paths, model loading, input, env info.
 
-Import-only (no CLI). Scripts live in experiments/, run as `python experiments/NN_*.py` from the repo root.
-Paths: weights and outputs live on Drive; stage_map.json lives next to the scripts (committed in the repo).
+Import-only (no CLI). Run scripts from the repo root: `python experiments/NN_*.py`.
+
+Where things live
+  weights  : DATA_ROOT/weights/   big, never committed. DATA_ROOT is AG_DATA if set, else
+             /content/ag_data on Colab (the VM disk, gone when the session ends), else
+             ~/.cache/alphagenome. Set AG_DATA to a Drive path to persist across sessions.
+  results  : experiments/results/ (OUT_DIR, override with AG_OUT). Small text/json, kept in
+             the repo tree so `export_results.py` can carry them back to your machine.
+  stage_map: experiments/stage_map.json (committed; it is an input to the harness).
 """
 import json
 import os
@@ -11,13 +18,22 @@ from pathlib import Path
 
 import torch
 
-_COLAB_DRIVE = Path("/content/drive/MyDrive/alphagenome")
-DRIVE_ROOT = Path(os.environ.get("AG_DRIVE") or (_COLAB_DRIVE if _COLAB_DRIVE.parent.exists() else Path.home() / ".cache" / "alphagenome"))
+SCRIPTS_DIR = Path(__file__).resolve().parent
+
+
+def _data_root() -> Path:
+    if os.environ.get("AG_DATA"):
+        return Path(os.environ["AG_DATA"])
+    if Path("/content").exists():  # Colab
+        return Path("/content/ag_data")
+    return Path.home() / ".cache" / "alphagenome"
+
+
+DATA_ROOT = _data_root()
 WEIGHTS_REPO = "gtca/alphagenome_pytorch"
 WEIGHTS_FILE = "model_all_folds.safetensors"
-WEIGHTS_PATH = DRIVE_ROOT / "weights" / WEIGHTS_FILE
-OUT_DIR = Path(os.environ.get("AG_OUT") or DRIVE_ROOT / "out")
-SCRIPTS_DIR = Path(__file__).resolve().parent
+WEIGHTS_PATH = DATA_ROOT / "weights" / WEIGHTS_FILE
+OUT_DIR = Path(os.environ.get("AG_OUT") or SCRIPTS_DIR / "results")
 STAGE_MAP = SCRIPTS_DIR / "stage_map.json"
 UPSTREAM_BASE = "72268c0"  # upstream commit this fork was profiled from; model code is not modified
 
@@ -32,7 +48,7 @@ def default_device() -> str:
 
 
 def load_model(device=None, dtype_policy=None):
-    """Load the model from the Drive cache in eval mode with grads off.
+    """Load the cached weights in eval mode with grads off.
 
     AG_RANDOM_INIT=1 builds an untrained model instead (tooling smoke tests only;
     the structure and shapes are identical, the numbers mean nothing).

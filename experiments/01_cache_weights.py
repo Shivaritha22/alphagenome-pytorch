@@ -1,7 +1,7 @@
-"""Download the weights once into the Drive cache. Later runs load from there only.
+"""Download the weights once into DATA_ROOT/weights (see common.py). Later runs load from there.
 
-Colab: mount Drive first (from google.colab import drive; drive.mount('/content/drive')).
-The HF repo is public, so no token is needed.
+The HF repo is public, so no token is needed. Re-run each Colab session unless AG_DATA
+points at persistent storage.
 """
 from huggingface_hub import hf_hub_download
 
