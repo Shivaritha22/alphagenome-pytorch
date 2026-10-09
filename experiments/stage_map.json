@@ -1,0 +1,12 @@
+{
+  "S1_encoder": ["encoder"],
+  "S2_tower": ["organism_embed", "tower"],
+  "S3_embed_128bp_pair": ["embedder_128bp", "embedder_pair"],
+  "S4_decoder_1bp": ["decoder", "embedder_1bp"],
+  "S5_track_heads": ["heads"],
+  "S6_contact_head": ["contact_maps_head"],
+  "S7_splice_heads": ["splice_sites_classification_head", "splice_sites_usage_head", "splice_sites_junction_head"],
+  "_cuts": "S1 conv encoder (bp -> 128bp tokens) | S2 transformer tower (sequence -> pair inside it) | S3 128bp + pair output embeddings | S4 U-Net decoder back to 1bp + 1bp embedding | S5 per-assay track heads (each head emits BOTH 1bp and 128bp, so heads do not split by resolution) | S6 pair -> contact maps | S7 splice heads (1bp)",
+  "_interleaved": "tower.blocks.{0,2,4,6,8}.pair_update runs on even blocks only, inside S2. Time as a sub-stage (sum of 5 calls) or fold into S2: decide in Block 2.",
+  "_glue": "ops made by AlphaGenome.forward() itself between child calls (root). Harness reports glue = end-to-end - sum(stages)."
+}
