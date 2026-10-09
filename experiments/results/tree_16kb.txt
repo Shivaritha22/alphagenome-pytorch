@@ -1,4 +1,4 @@
-# tree_16kb.json  meta={"length": 16384, "device": "cuda", "dtype": "fp32", "python": "3.13.15", "torch": "2.11.0+cu130", "cuda": "13.0", "gpu": "NVIDIA A100-SXM4-80GB", "port_commit": "bd8895a6decd256664a378bc59cb09df8015d0ec", "upstream_base": "72268c0", "weights": "model_all_folds.safetensors", "driver": "580.82.07"}
+# tree_16kb.json  meta={"length": 16384, "device": "cuda", "dtype": "fp32", "python": "3.13.15", "torch": "2.11.0+cu130", "cuda": "13.0", "gpu": "NVIDIA A100-SXM4-80GB", "port_commit": "6fdc24cae123f0c6ea332528fa8170770fea1fd9", "upstream_base": "72268c0", "weights": "model_all_folds.safetensors", "driver": "580.82.07"}
 <root> [AlphaGenome]  params=450.45M  in=[[float32[1, 16384, 4],int64[1]],{}] -> out={atac:{1:float32[1, 16384, 256],128:float32[1, 128, 256]},dnase:{1:...  [glue]
   encoder [SequenceEncoder]  params=89.97M  in=[[float32[1, 16384, 4]],{}] -> out=[float32[1, 1536, 128],{bin_size_1:float32[1, 768, 16384],bin_size_...  [S1_encoder]
     . Tensor.transpose  [float32[1, 16384, 4]] -> float32[1, 4, 16384]
