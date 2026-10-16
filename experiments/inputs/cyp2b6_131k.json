@@ -1,0 +1,13 @@
+{
+  "name": "cyp2b6_131k",
+  "assembly": "GRCh38.p13",
+  "fasta": "/content/ag_data/ref/GRCh38.p13.genome.fa",
+  "chrom": "chr19",
+  "start": 40939304,
+  "end": 41070376,
+  "length": 131072,
+  "n_bases": 0,
+  "sha256_seq": "35f4645276292bbe5d3c0c0ddc06d157dc544f38b5c1c691c004ea57150fbec8",
+  "sha256_onehot": "74b53b1e94bf994719be05a531707d81bdf65d5f80afe3d97c554250b7f3e6e0",
+  "created": "2026-10-16"
+}
