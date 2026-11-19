@@ -1,4 +1,4 @@
-"""shared paths, model loading, the fixed input, the forward pass and the stage map."""
+"""shared paths, model loading, the fixed input, the forward pass, the stage map, run dirs and manifests."""
 import hashlib, json, os, pathlib, subprocess
 import numpy as np
 import torch
@@ -9,9 +9,13 @@ weights = data / "weights" / "model_all_folds.safetensors"
 fasta = data / "ref" / "GRCh38.p13.genome.fa"
 inputs = here / "inputs"
 results = here / "results"
+raw = pathlib.Path(os.environ.get("AG_RAW", "/fs/nexus-scratch/shivrita/alphagenome/results/a6000"))
 name = "cyp2b6_1m"
-lengths = [2048, 16384, 131072, 524288, 1048576]
+lengths = [2048, 16384, 131072, 262144, 524288, 1048576]
 fp32 = os.environ.get("AG_FP32") == "1"
+prec = "fp32" if fp32 else "bf16"
+modes = ["eager", "compile_e2e", "compile_stage"]
+stages = ["encoder", "transformer", "pairwise", "decoder", "embedders", "heads", "splice_junction", "other"]
 
 
 def fetch_weights():
@@ -62,15 +66,95 @@ def stage(module):
 		return "pairwise" if ".pair_update" in module or ".attn_bias" in module else "transformer"
 	if module == "organism_embed":
 		return "transformer"
-	if module == "embedder_pair":
+	if module.startswith("embedder_pair"):
 		return "pairwise"
 	if module.startswith("decoder"):
 		return "decoder"
 	if module.startswith("embedder"):
 		return "embedders"
+	if module.startswith("splice_sites_junction"):
+		return "splice_junction"
 	if module.startswith(("heads", "contact_maps_head", "splice_")):
 		return "heads"
 	return "other"
+
+
+def regions(model):
+	# stage-level submodules; compile_stage compiles each one on its own
+	names = ["encoder", "organism_embed"]
+	for i, b in enumerate(model.tower.blocks):
+		names += [f"tower.blocks.{i}.{k}" for k in b.keys() if b[k] is not None]
+	names += ["decoder", "embedder_128bp", "embedder_1bp", "embedder_pair"]
+	names += [f"heads.{k}" for k in model.heads.keys()]
+	names += ["contact_maps_head", "splice_sites_classification_head", "splice_sites_usage_head", "splice_sites_junction_head"]
+	return names
+
+
+class Region(torch.nn.Module):
+	# a compiled stage-level submodule; its named range sits outside the compiled code
+	def __init__(self, name, m):
+		super().__init__()
+		self.name = name
+		self.m = torch.compile(m, dynamic=False)
+
+	def forward(self, *a, **k):
+		with torch.profiler.record_function(self.name), torch.cuda.nvtx.range(self.name):
+			return self.m(*a, **k)
+
+
+def prepare(model, mode):
+	# eager: the model; compile_e2e: one compiled graph; compile_stage: each region compiled, wrapped in a named range
+	torch._dynamo.config.recompile_limit = 64
+	if mode == "compile_e2e":
+		return torch.compile(model, dynamic=False)
+	if mode == "compile_stage":
+		for n in regions(model):
+			p, _, k = n.rpartition(".")
+			parent = model.get_submodule(p)
+			setattr(parent, k, Region(n, getattr(parent, k)))
+	return model
+
+
+def ranges(model):
+	# eager: a profiler and nvtx range named after the module around every module call
+	stack = []
+
+	def pre(n):
+		def f(m, a):
+			r = torch.profiler.record_function(n)
+			r.__enter__()
+			stack.append(r)
+			torch.cuda.nvtx.range_push(n)
+		return f
+
+	def post(m, a, o):
+		torch.cuda.nvtx.range_pop()
+		stack.pop().__exit__(None, None, None)
+
+	for n, m in model.named_modules():
+		m.register_forward_pre_hook(pre(n or "root"))
+		m.register_forward_hook(post)
+
+
+def oom(e):
+	return isinstance(e, torch.cuda.OutOfMemoryError) or "out of memory" in str(e).lower()
+
+
+def run_dir(length, mode):
+	d = raw / str(length) / f"{mode}_{prec}"
+	d.mkdir(parents=True, exist_ok=True)
+	return d
+
+
+def smi(q):
+	# one nvidia-smi query for the gpu this process uses
+	i = os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0]
+	return subprocess.check_output(["nvidia-smi", "-i", i, f"--query-gpu={q}", "--format=csv,noheader,nounits"], text=True).strip()
+
+
+def gpu_state():
+	f = smi("clocks.sm,clocks.mem,temperature.gpu,power.draw").split(", ")
+	return {"sm_mhz": f[0], "mem_mhz": f[1], "temp_c": f[2], "power_w": f[3]}
 
 
 def gpu():
@@ -84,8 +168,25 @@ def env():
 		commit = "unknown"
 	return {
 		"gpu": torch.cuda.get_device_name(),
+		"gpu_memory_gb": round(torch.cuda.get_device_properties(0).total_memory / 2**30, 2),
 		"torch": torch.__version__,
 		"cuda": torch.version.cuda,
+		"driver": smi("driver_version"),
 		"dtype": "fp32" if fp32 else "bf16 compute, fp32 params",
 		"commit": commit,
 	}
+
+
+def manifest(d, item, length, mode, x, before, after, **kw):
+	# one json per run: environment, clocks and temperature before and after, input hash
+	meta = json.load(open(inputs / f"{name}.json"))
+	m = {"item": item, "length": length, "mode": mode, "precision": prec, **env()}
+	m["input_sha256"] = hashlib.sha256(x.cpu().numpy().tobytes()).hexdigest() if x is not None else ""
+	m["input_seq_sha256"] = meta["sha256_crops"].get(str(length), "")
+	m["slurm_job"] = os.environ.get("SLURM_JOB_ID", "")
+	m["node"] = os.uname().nodename
+	m["before"] = before
+	m["after"] = after
+	m.update(kw)
+	json.dump(m, open(d / f"manifest_{item}.json", "w"), indent=1)
+	return m

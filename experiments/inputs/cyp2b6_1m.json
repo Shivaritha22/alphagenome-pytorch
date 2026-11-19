@@ -1,0 +1,22 @@
+{
+  "name": "cyp2b6_1m",
+  "assembly": "GRCh38.p13",
+  "gene": "CYP2B6",
+  "chrom": "chr19",
+  "start": 40480552,
+  "end": 41529128,
+  "length": 1048576,
+  "n_bases": 0,
+  "sha256_seq": "0e4dbf45a43ce549c10fd62add56d6eae75d40ea56fe36510f5fde596deebdbb",
+  "sha256_onehot": "579baa77f28f6f015d2636e84b22cd46a908ffe123300573fc70bb5776880e8e",
+  "sha256_crops": {
+    "2048": "e5bd42869603ebc40b07ffc51fb61fffec043fbeeca50915900b7db3c38f260b",
+    "16384": "a75ae932c82bd451d293fa3a1284c43d15655f0be852de4ed3274e088400a4bb",
+    "131072": "35f4645276292bbe5d3c0c0ddc06d157dc544f38b5c1c691c004ea57150fbec8",
+    "262144": "ea3d25e05c8958210154f34aa135c67dfda3274c0d7ea4d23aae4734a0fa87d7",
+    "524288": "c1ebd72fa709f4447f35f91fc0841197190f2ac3f0b3a2213cd6d073edf37089",
+    "1048576": "0e4dbf45a43ce549c10fd62add56d6eae75d40ea56fe36510f5fde596deebdbb"
+  },
+  "same_131k_as_jax_run": true,
+  "created": "2026-11-19"
+}
